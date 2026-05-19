@@ -303,7 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = document.createElement('option');
             opt.value = m;
             opt.textContent = m;
-            if (m === currentSelected) opt.selected = true;
+            // إذا كانت المادة محددة مسبقاً، أو إذا كانت هناك مادة واحدة فقط للشركة يتم اختيارها تلقائياً
+            if (m === currentSelected || mats.length === 1) {
+                opt.selected = true;
+            }
             matSel.appendChild(opt);
         });
     }
@@ -316,44 +319,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!entityVal) {
             debtHint.style.display = 'none';
+            if (!skipInputs) {
+                document.getElementById('fin-tonnage').value = '';
+                document.getElementById('fin-amount').value = '';
+            }
             return;
         }
 
+        // حساب الرصيد دائماً حتى تتعبأ الحقول بغض النظر عن نوع السند المختار حالياً
+        let totalQty = 0;
+        records.forEach(r => {
+            if (r.companyName.toLowerCase().includes(entityVal) || r.driverName.toLowerCase().includes(entityVal)) {
+                if (!matVal || r.materialType === matVal) {
+                    totalQty += (r.quantity || 0);
+                }
+            }
+        });
+
+        financials.forEach(f => {
+            if (f.entityName.toLowerCase().includes(entityVal)) {
+                if (!matVal || f.material === matVal) {
+                    if (f.type === 'payment') {
+                        totalQty -= (f.tonnage || 0);
+                    }
+                }
+            }
+        });
+
+        // إظهار التلميح فقط في حالة الصرف
         if (typeVal === 'payment') {
-            let totalQty = 0;
-            records.forEach(r => {
-                if (r.companyName.toLowerCase().includes(entityVal) || r.driverName.toLowerCase().includes(entityVal)) {
-                    if (!matVal || r.materialType === matVal) {
-                        totalQty += (r.quantity || 0);
-                    }
-                }
-            });
-
-            financials.forEach(f => {
-                if (f.entityName.toLowerCase().includes(entityVal)) {
-                    if (!matVal || f.material === matVal) {
-                        if (f.type === 'payment') {
-                            totalQty -= (f.tonnage || 0);
-                        }
-                    }
-                }
-            });
-
             debtHint.style.display = 'block';
             const matText = matVal ? `من مادة (${matVal})` : 'لكل المواد';
             if (totalQty > 0) {
                 debtHint.innerHTML = `<i class="fas fa-info-circle"></i> الرصيد المتبقي لهذه الجهة ${matText}: <strong>${fmt(totalQty)} طن</strong>`;
-                if (!skipInputs) document.getElementById('fin-tonnage').value = totalQty;
             } else {
                 debtHint.innerHTML = `<i class="fas fa-check-circle" style="color:var(--profit-color)"></i> لا يوجد رصيد متبقي لهذه الجهة ${matText}`;
-                if (!skipInputs) document.getElementById('fin-tonnage').value = '';
             }
-            
-            // حساب المبلغ التلقائي بعد تعبئة الكمية الجديدة (إذا لم نكن بوضع التعديل)
-            if (!skipInputs) autoCalculateFinAmount();
-
         } else {
             debtHint.style.display = 'none';
+        }
+
+        // تعبئة الحقول تلقائياً بالكمية المتبقية إذا لم نكن بوضع التعديل اليدوي
+        if (!skipInputs) {
+            if (totalQty > 0) {
+                document.getElementById('fin-tonnage').value = totalQty;
+            } else {
+                document.getElementById('fin-tonnage').value = '';
+            }
+            // حساب المبلغ التلقائي بعد تحديث الكمية
+            autoCalculateFinAmount();
         }
     }
 
@@ -364,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const matVal = document.getElementById('fin-material').value;
         
         if (!entityVal || tonnageVal <= 0) {
-            finAmount.value = '';
+            document.getElementById('fin-amount').value = '';
             return;
         }
 
@@ -381,11 +395,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (sellingPrice > 0) {
-            finAmount.value = Math.round(tonnageVal * sellingPrice);
+            document.getElementById('fin-amount').value = Math.round(tonnageVal * sellingPrice);
+        } else {
+            document.getElementById('fin-amount').value = '';
         }
     }
 
-    // مستمعات الأحداث للملء التلقائي في الصندوق
+    // مستمعات الأحداث للتحديث التلقائي الفوري
     finEntity.addEventListener('input', () => {
         updateFinMaterials();
         autoFillDebt(false);
@@ -395,7 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('fin-material').addEventListener('change', () => autoFillDebt(false));
     
-    // عند التعديل اليدوي على الكمية يتحدث المبلغ فوراً
     document.getElementById('fin-tonnage').addEventListener('input', autoCalculateFinAmount);
 
     finForm.addEventListener('submit', (e) => {
@@ -483,12 +498,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateFinMaterials();
                 document.getElementById('fin-material').value = rec.material || '';
                 
-                // جلب الملاحظة التوضيحية للديون دون الكتابة فوق القيم التي نريد تعديلها (skipInputs = true)
+                // جلب الملاحظة التوضيحية للديون دون الكتابة فوق القيم التي نريد تعديلها
                 autoFillDebt(true);
                 
                 // إرجاع القيم الأصلية للسند في الحقول ليتم تعديلها
                 document.getElementById('fin-tonnage').value = rec.tonnage || '';
-                finAmount.value = rec.amount;
+                finAmount.value = rec.amount || '';
                 document.getElementById('fin-notes').value = rec.notes;
                 
                 finSubmitBtn.textContent = 'تعديل السند';
