@@ -331,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             date: document.getElementById('fin-date').value,
             type: finType.value,
             amount: parseFloat(finAmount.value) || 0,
+            tonnage: parseFloat(document.getElementById('fin-tonnage').value) || 0,
             entityName: finEntity.value.trim(),
             notes: document.getElementById('fin-notes').value.trim()
         };
@@ -347,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('financialRecords', JSON.stringify(financials));
         finForm.reset();
         finIdInput.value = '';
+        document.getElementById('fin-tonnage').value = '';
         finSubmitBtn.textContent = 'حفظ السند';
         document.getElementById('fin-date').value = today;
         debtHint.style.display = 'none';
@@ -361,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (financials.length === 0) {
             const tr = document.createElement('tr');
             tr.className = 'empty-row';
-            tr.innerHTML = `<td colspan="6">لا توجد سندات مسجلة</td>`;
+            tr.innerHTML = `<td colspan="7">لا توجد سندات مسجلة</td>`;
             body.appendChild(tr);
             return;
         }
@@ -377,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${f.date}</td>
                 <td>${typeHTML}</td>
                 <td>${f.entityName}</td>
+                <td style="font-weight:bold;">${f.tonnage ? fmt(f.tonnage) : '-'}</td>
                 <td style="font-weight:bold;">${fmt(f.amount)}</td>
                 <td>${f.notes || '-'}</td>
                 <td>
@@ -399,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('fin-date').value = rec.date;
                 finType.value = rec.type;
                 finAmount.value = rec.amount;
+                document.getElementById('fin-tonnage').value = rec.tonnage || '';
                 finEntity.value = rec.entityName;
                 document.getElementById('fin-notes').value = rec.notes;
                 finSubmitBtn.textContent = 'تعديل السند';
@@ -419,7 +423,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const entity = this.value.trim().toLowerCase();
         const matSel = document.getElementById('stmt-material');
         matSel.innerHTML = '<option value="all">كل المواد</option>';
-        if (!entity) return;
+        if (!entity) {
+            document.getElementById('stmt-result').style.display = 'none';
+            return;
+        }
 
         const mats = [...new Set(
             records
@@ -437,7 +444,13 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = m;
             matSel.appendChild(opt);
         });
+
+        document.getElementById('btn-generate-stmt').click();
     });
+
+    document.getElementById('stmt-from').addEventListener('change', () => document.getElementById('btn-generate-stmt').click());
+    document.getElementById('stmt-to').addEventListener('change', () => document.getElementById('btn-generate-stmt').click());
+    document.getElementById('stmt-material').addEventListener('change', () => document.getElementById('btn-generate-stmt').click());
 
     // --- كشف الحساب التفصيلي الكامل ---
     document.getElementById('btn-generate-stmt').addEventListener('click', () => {
@@ -447,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const matFilter = document.getElementById('stmt-material').value;
 
         if (!entity) {
-            alert('يرجى إدخال اسم الجهة المطلوبة للكشف!');
+            document.getElementById('stmt-result').style.display = 'none';
             return;
         }
 
@@ -466,8 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         material: r.materialType,
                         quantity: r.quantity,
                         unit: r.unitType,
-                        purchasePrice: r.purchasePrice,
-                        debit: r.quantity * r.purchasePrice,
+                        purchasePrice: r.sellingPrice,
+                        debit: r.quantity * r.sellingPrice,
                         credit: r.amountReceived
                     });
                 }
@@ -486,8 +499,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             person: f.entityName,
                             car: '-',
                             material: f.notes || '-',
-                            quantity: '-',
-                            unit: '-',
+                            quantity: f.tonnage ? f.tonnage : '-',
+                            unit: f.tonnage ? 'طنية' : '-',
                             purchasePrice: '-',
                             debit: isReceipt ? 0 : f.amount,
                             credit: isReceipt ? f.amount : 0
