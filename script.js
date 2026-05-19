@@ -685,25 +685,50 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalQty = 0;
         let totalProfit = 0;
         let totalDebt = 0;
-        let safeBalance = 0;
+        let totalSales = 0;
+        let totalPurchases = 0;
 
         filteredRecords.forEach(rec => {
             totalQty += rec.quantity;
             totalProfit += rec.netProfit;
             totalDebt += rec.remainingDebt;
+            totalSales += (rec.quantity * rec.sellingPrice) || 0;
+            totalPurchases += (rec.quantity * rec.purchasePrice) || 0;
         });
 
-        // رصيد الصندوق العام
-        records.forEach(r => safeBalance += (r.amountReceived || 0));
+        // خصم طنية الصرف من إجمالي الكميات المتبقية
         financials.forEach(f => {
-            if (f.type === 'receipt') safeBalance += f.amount;
-            if (f.type === 'payment') safeBalance -= f.amount;
+            if (f.type === 'payment') {
+                let matchComp = true;
+                if (selectedCompany !== 'all') {
+                    const eName = (f.entityName || '').toLowerCase();
+                    const sComp = selectedCompany.toLowerCase();
+                    matchComp = eName.includes(sComp) || sComp.includes(eName);
+                }
+                
+                let matchDrv = true;
+                if (driverFilter) {
+                    const eName = (f.entityName || '').toLowerCase();
+                    matchDrv = eName.includes(driverFilter);
+                }
+                
+                if (matchComp && matchDrv) {
+                    totalQty -= (parseFloat(f.tonnage) || 0);
+                }
+            }
         });
+
+        if (totalQty < 0) totalQty = 0;
 
         document.getElementById('stat-total-qty').textContent = fmt(totalQty);
         document.getElementById('stat-total-profit').textContent = fmt(totalProfit);
         document.getElementById('stat-total-debt').textContent = fmt(totalDebt);
-        document.getElementById('stat-safe-balance').textContent = fmt(safeBalance);
+        
+        let salesBox = document.getElementById('stat-total-sales');
+        if (salesBox) salesBox.textContent = fmt(totalSales);
+        
+        let purchasesBox = document.getElementById('stat-total-purchases');
+        if (purchasesBox) purchasesBox.textContent = fmt(totalPurchases);
 
         // عرض الجدول التفصيلي إذا كانت هناك فلترة
         const detailSection = document.getElementById('detail-section');
@@ -801,10 +826,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mats.forEach(mat => {
             const recs       = base.filter(r => r.materialType === mat);
-            const totalQty   = recs.reduce((s, r) => s + r.quantity, 0);
-            const totalPurch = recs.reduce((s, r) => s + r.quantity * r.purchasePrice, 0);
-            const totalSale  = recs.reduce((s, r) => s + (r.quantity * r.sellingPrice || 0), 0);
+            let totalQty   = recs.reduce((s, r) => s + r.quantity, 0);
+            let totalPurch = recs.reduce((s, r) => s + r.quantity * r.purchasePrice, 0);
+            let totalSale  = recs.reduce((s, r) => s + (r.quantity * r.sellingPrice || 0), 0);
             const unit       = recs[0]?.unitType || '';
+
+            // طرح الكميات التي تم صرفها من الصندوق (سند صرف)
+            let usedQty = 0;
+            financials.forEach(f => {
+                if (f.type === 'payment' && f.material === mat) {
+                    let matchComp = true;
+                    if (compVal !== 'all') {
+                        const eName = (f.entityName || '').toLowerCase();
+                        const cVal = compVal.toLowerCase();
+                        matchComp = eName.includes(cVal) || cVal.includes(eName);
+                    }
+                    if (matchComp) {
+                        usedQty += (parseFloat(f.tonnage) || 0);
+                    }
+                }
+            });
+
+            const originalQty = totalQty;
+            let currentQty = totalQty - usedQty;
+            if (currentQty < 0) currentQty = 0;
+
+            // حساب التكلفة وقيمة البيع بشكل يتناسب مع المتبقي من المادة
+            if (originalQty > 0) {
+                let ratio = currentQty / originalQty;
+                totalPurch = Math.round(totalPurch * ratio);
+                totalSale  = Math.round(totalSale * ratio);
+            } else {
+                totalPurch = 0;
+                totalSale  = 0;
+            }
 
             const box = document.createElement('div');
             box.className = 'glass-panel-inner wh-balance-box';
@@ -817,7 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center;">
                     <div>
                         <div style="font-size:0.72rem; color:var(--text-secondary); margin-bottom:3px;">إجمالي الكمية</div>
-                        <div style="color:#fff; font-weight:bold; font-size:1rem;">${fmt(totalQty)}</div>
+                        <div style="color:#fff; font-weight:bold; font-size:1rem;">${fmt(currentQty)}</div>
                     </div>
                     <div>
                         <div style="font-size:0.72rem; color:var(--text-secondary); margin-bottom:3px;">قيمة الشراء</div>
