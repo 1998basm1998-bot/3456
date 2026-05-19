@@ -15,7 +15,6 @@
 
     <main id="main-content">
         
-        <!-- تبويب إدخال البيانات -->
         <section id="tab-add" class="tab-content active">
             <div class="glass-card">
                 <h2>بيانات الحركة</h2>
@@ -89,7 +88,6 @@
             </div>
         </section>
 
-        <!-- تبويب الحركات اليومية -->
         <section id="tab-transactions" class="tab-content">
             <div class="glass-card">
                 <h2>الحركات اليومية</h2>
@@ -122,7 +120,6 @@
             </div>
         </section>
 
-        <!-- تبويب الصندوق -->
         <section id="tab-financial" class="tab-content">
             <div class="glass-card">
                 <h2>حركات الصندوق (قبض وصرف)</h2>
@@ -151,6 +148,10 @@
                         <input type="number" id="fin-amount" placeholder="0" required>
                     </div>
                     <div class="form-group">
+                        <label>الكمية (طنية)</label>
+                        <input type="number" step="0.001" id="fin-tonnage" placeholder="0">
+                    </div>
+                    <div class="form-group">
                         <label>ملاحظات</label>
                         <input type="text" id="fin-notes" placeholder="تفاصيل إضافية...">
                     </div>
@@ -165,6 +166,7 @@
                                 <th>التاريخ</th>
                                 <th>النوع</th>
                                 <th>الجهة</th>
+                                <th>الكمية (طنية)</th>
                                 <th>المبلغ</th>
                                 <th>ملاحظات</th>
                                 <th>الإجراءات</th>
@@ -176,7 +178,6 @@
             </div>
         </section>
 
-        <!-- تبويب كشف الحساب -->
         <section id="tab-statement" class="tab-content">
             <div class="glass-card">
                 <h2>كشف حساب تفصيلي</h2>
@@ -200,13 +201,13 @@
                         <option value="all">كل المواد</option>
                     </select>
                 </div>
-                <button id="btn-generate-stmt" class="btn-primary">توليد الكشف</button>
+                <button id="btn-generate-stmt" class="btn-primary" style="display:none;">توليد الكشف</button>
                 
                 <div id="stmt-result" style="display:none; margin-top:25px;">
                     <h3 style="color:var(--accent-color); margin-bottom:15px;">خلاصة الكشف</h3>
                     <div class="stats-grid" style="margin-bottom:20px; grid-template-columns: 1fr 1fr;">
                         <div class="stat-box glass-panel-inner warning">
-                            <h3>الرصيد المتبقي (الديون)</h3>
+                            <h3>رصيد المواد المتبقية</h3>
                             <p id="stmt-final-balance">0</p>
                         </div>
                         <div class="stat-box glass-panel-inner" style="border-color: var(--profit-color);">
@@ -225,7 +226,7 @@
                                     <th>المادة</th>
                                     <th>الكمية</th>
                                     <th>الوحدة</th>
-                                    <th>سعر الشراء</th>
+                                    <th>سعر البيع</th>
                                     <th>المبلغ (عليه)</th>
                                     <th>الواصل (له)</th>
                                 </tr>
@@ -237,7 +238,6 @@
             </div>
         </section>
 
-        <!-- تبويب الإحصاء -->
         <section id="tab-dashboard" class="tab-content">
             <div class="glass-card">
                 <h2>إحصائيات المخزن والأرباح</h2>
@@ -272,7 +272,6 @@
                     </div>
                 </div>
 
-                <!-- جدول تفاصيل الشركة / السائق المختار -->
                 <div id="detail-section" style="display:none; margin-top:25px;">
                     <h3 style="color:var(--accent-color); border-bottom:1px solid var(--glass-border); padding-bottom:10px; margin-bottom:15px;">
                         تفاصيل الحركات
@@ -301,7 +300,6 @@
             </div>
         </section>
 
-        <!-- تبويب المخزن -->
         <section id="tab-warehouse" class="tab-content">
             <div class="glass-card">
                 <h2>رصيد المخزن</h2>
@@ -320,10 +318,8 @@
                     </div>
                 </div>
 
-                <!-- بطاقات رصيد المواد -->
                 <div id="wh-balance-grid" style="display:grid; gap:12px; margin-bottom:25px;"></div>
 
-                <!-- جدول تفاصيل الحركات -->
                 <h3 style="color:var(--accent-color); border-bottom:1px solid var(--glass-border); padding-bottom:8px; margin-bottom:15px;">تفاصيل الحركات</h3>
                 <div class="table-responsive">
                     <table>
