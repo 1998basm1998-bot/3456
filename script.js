@@ -308,8 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // حساب وعرض رصيد الطنية المتبقي التلقائي للجهة
-    function autoFillDebt() {
+    // حساب وعرض رصيد الطنية المتبقي التلقائي للجهة، وتعبئة الحقول بذكاء
+    function autoFillDebt(skipInputs = false) {
         const entityVal = finEntity.value.trim().toLowerCase();
         const typeVal = finType.value;
         const matVal = document.getElementById('fin-material').value;
@@ -343,9 +343,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const matText = matVal ? `من مادة (${matVal})` : 'لكل المواد';
             if (totalQty > 0) {
                 debtHint.innerHTML = `<i class="fas fa-info-circle"></i> الرصيد المتبقي لهذه الجهة ${matText}: <strong>${fmt(totalQty)} طن</strong>`;
+                if (!skipInputs) document.getElementById('fin-tonnage').value = totalQty;
             } else {
                 debtHint.innerHTML = `<i class="fas fa-check-circle" style="color:var(--profit-color)"></i> لا يوجد رصيد متبقي لهذه الجهة ${matText}`;
+                if (!skipInputs) document.getElementById('fin-tonnage').value = '';
             }
+            
+            // حساب المبلغ التلقائي بعد تعبئة الكمية الجديدة (إذا لم نكن بوضع التعديل)
+            if (!skipInputs) autoCalculateFinAmount();
+
         } else {
             debtHint.style.display = 'none';
         }
@@ -357,7 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const tonnageVal = parseFloat(document.getElementById('fin-tonnage').value) || 0;
         const matVal = document.getElementById('fin-material').value;
         
-        if (!entityVal || tonnageVal <= 0) return;
+        if (!entityVal || tonnageVal <= 0) {
+            finAmount.value = '';
+            return;
+        }
 
         let sellingPrice = 0;
         const lastRecord = [...records].reverse().find(r =>
@@ -376,16 +385,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // مستمعات الأحداث للملء التلقائي في الصندوق
     finEntity.addEventListener('input', () => {
         updateFinMaterials();
-        autoFillDebt();
-        autoCalculateFinAmount();
+        autoFillDebt(false);
     });
-    finType.addEventListener('change', autoFillDebt);
-    document.getElementById('fin-material').addEventListener('change', () => {
-        autoFillDebt();
-        autoCalculateFinAmount();
-    });
+    
+    finType.addEventListener('change', () => autoFillDebt(false));
+    
+    document.getElementById('fin-material').addEventListener('change', () => autoFillDebt(false));
+    
+    // عند التعديل اليدوي على الكمية يتحدث المبلغ فوراً
     document.getElementById('fin-tonnage').addEventListener('input', autoCalculateFinAmount);
 
     finForm.addEventListener('submit', (e) => {
@@ -469,14 +479,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 finIdInput.value = rec.id;
                 document.getElementById('fin-date').value = rec.date;
                 finType.value = rec.type;
-                finAmount.value = rec.amount;
-                document.getElementById('fin-tonnage').value = rec.tonnage || '';
                 finEntity.value = rec.entityName;
                 updateFinMaterials();
                 document.getElementById('fin-material').value = rec.material || '';
+                
+                // جلب الملاحظة التوضيحية للديون دون الكتابة فوق القيم التي نريد تعديلها (skipInputs = true)
+                autoFillDebt(true);
+                
+                // إرجاع القيم الأصلية للسند في الحقول ليتم تعديلها
+                document.getElementById('fin-tonnage').value = rec.tonnage || '';
+                finAmount.value = rec.amount;
                 document.getElementById('fin-notes').value = rec.notes;
+                
                 finSubmitBtn.textContent = 'تعديل السند';
-                autoFillDebt();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         } else if (e.target.classList.contains('fin-delete')) {
