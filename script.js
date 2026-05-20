@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         financials.forEach(f => {
             if (f.entityName.toLowerCase().includes(entityVal)) {
                 if (!matVal || f.material === matVal) {
-                    if (f.type === 'payment') {
+                    if (f.type === 'receipt') {
                         totalQty -= (f.tonnage || 0);
                     }
                 }
@@ -711,10 +711,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         Object.values(groups).forEach(g => {
-            // حساب الطنية المصروفة (التي تم سدادها) لهذه الشركة والمادة
+            // حساب الطنية المقبوضة (التي تم سدادها) لهذه الشركة والمادة
             let usedQty = 0;
             financials.forEach(f => {
-                if (f.type === 'payment') {
+                if (f.type === 'receipt') {
                     const eName = (f.entityName || '').toLowerCase();
                     const cName = (g.companyName || '').toLowerCase();
                     const matchComp = eName.includes(cName) || cName.includes(eName);
@@ -861,10 +861,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let totalSale  = recs.reduce((s, r) => s + (r.quantity * r.sellingPrice || 0), 0);
             const unit       = recs[0]?.unitType || '';
 
-            // طرح الكميات التي تم صرفها من الصندوق (سند صرف)
+            // طرح الكميات التي تم قبضها من الصندوق (سند قبض)
             let usedQty = 0;
             financials.forEach(f => {
-                if (f.type === 'payment' && (!f.material || f.material === mat)) {
+                if (f.type === 'receipt' && f.material === mat) {
                     let matchComp = true;
                     if (compVal !== 'all') {
                         const eName = (f.entityName || '').toLowerCase();
