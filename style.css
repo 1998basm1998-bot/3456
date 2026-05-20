@@ -28,7 +28,6 @@ body {
     padding-bottom: 110px;
 }
 
-/* Glassmorphism Utilities */
 .glass-panel {
     background: rgba(15, 32, 39, 0.6);
     backdrop-filter: blur(12px);
@@ -55,7 +54,6 @@ body {
     border: 1px solid rgba(255,255,255,0.05);
 }
 
-/* Header */
 header {
     text-align: center;
     padding: 15px;
@@ -69,7 +67,6 @@ h1, h2, h3 {
     margin-bottom: 15px;
 }
 
-/* Forms */
 .form-group {
     margin-bottom: 15px;
     display: flex;
@@ -148,7 +145,6 @@ select option {
     transform: scale(0.98);
 }
 
-/* Tabs System */
 .tab-content {
     display: none;
     animation: fadeIn 0.4s ease-in-out;
@@ -163,7 +159,6 @@ select option {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Bottom Navigation */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -218,7 +213,6 @@ select option {
     transform: scale(1.1);
 }
 
-/* Tables & Search */
 .search-box {
     display: flex;
     gap: 10px;
@@ -276,7 +270,6 @@ th {
 .btn-delete { background: #ff5252; }
 .btn-delete:hover { background: #e53935; }
 
-/* Stats Grid */
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -295,7 +288,6 @@ th {
     color: white;
 }
 
-/* Filter Row */
 .filter-row {
     display: flex;
     gap: 15px;
@@ -313,18 +305,6 @@ th {
     width: 100%;
 }
 
-/* Debt hint box */
-.debt-hint-box {
-    background: rgba(0, 210, 255, 0.08);
-    border: 1px solid rgba(0, 210, 255, 0.3);
-    border-radius: 10px;
-    padding: 10px 15px;
-    margin-bottom: 12px;
-    font-size: 0.95rem;
-    color: var(--accent-color);
-}
-
-/* Type icons */
 .icon-receipt {
     color: #00e676;
     margin-left: 6px;
@@ -335,7 +315,6 @@ th {
     margin-left: 6px;
 }
 
-/* Empty state */
 .empty-row td {
     text-align: center;
     color: var(--text-secondary);
@@ -343,44 +322,6 @@ th {
     font-size: 0.95rem;
 }
 
-/* Secondary button */
-.btn-secondary {
-    padding: 12px 18px;
-    background: rgba(0, 210, 255, 0.15);
-    color: var(--accent-color);
-    border: 1px solid var(--accent-color);
-    border-radius: 10px;
-    font-size: 1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.2s;
-    white-space: nowrap;
-}
-.btn-secondary:active { transform: scale(0.97); }
-
-/* Material tags */
-.material-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(0, 210, 255, 0.1);
-    border: 1px solid rgba(0, 210, 255, 0.3);
-    border-radius: 20px;
-    padding: 5px 12px;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-}
-.tag-del {
-    background: none;
-    border: none;
-    color: var(--danger-color);
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 0;
-    line-height: 1;
-}
-
-/* Warehouse balance box */
 .wh-balance-box {
     border-width: 1px;
     border-style: solid;
