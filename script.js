@@ -682,53 +682,83 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredRecords = filteredRecords.filter(r => r.driverName.toLowerCase().includes(driverFilter));
         }
 
-        let totalQty = 0;
-        let totalProfit = 0;
-        let totalDebt = 0;
-        let totalSales = 0;
-        let totalPurchases = 0;
+        let finalTotalQty = 0;
+        let finalTotalProfit = 0;
+        let finalTotalDebt = 0;
+        let finalTotalSales = 0;
+        let finalTotalPurchases = 0;
 
+        // تجميع السجلات حسب الشركة والمادة لخصم المدفوع بدقة (نسبة وتناسب)
+        const groups = {};
         filteredRecords.forEach(rec => {
-            totalQty += rec.quantity;
-            totalProfit += rec.netProfit;
-            totalDebt += rec.remainingDebt;
-            totalSales += (rec.quantity * rec.sellingPrice) || 0;
-            totalPurchases += (rec.quantity * rec.purchasePrice) || 0;
-        });
-
-        // خصم طنية الصرف من إجمالي الكميات المتبقية
-        financials.forEach(f => {
-            if (f.type === 'payment') {
-                let matchComp = true;
-                if (selectedCompany !== 'all') {
-                    const eName = (f.entityName || '').toLowerCase();
-                    const sComp = selectedCompany.toLowerCase();
-                    matchComp = eName.includes(sComp) || sComp.includes(eName);
-                }
-                
-                let matchDrv = true;
-                if (driverFilter) {
-                    const eName = (f.entityName || '').toLowerCase();
-                    matchDrv = eName.includes(driverFilter);
-                }
-                
-                if (matchComp && matchDrv) {
-                    totalQty -= (parseFloat(f.tonnage) || 0);
-                }
+            const key = rec.companyName + '|' + (rec.materialType || '');
+            if (!groups[key]) {
+                groups[key] = {
+                    qty: 0,
+                    profit: 0,
+                    debt: 0,
+                    sales: 0,
+                    purchases: 0,
+                    companyName: rec.companyName,
+                    materialType: (rec.materialType || '')
+                };
             }
+            groups[key].qty += rec.quantity;
+            groups[key].profit += rec.netProfit;
+            groups[key].debt += rec.remainingDebt;
+            groups[key].sales += (rec.quantity * rec.sellingPrice) || 0;
+            groups[key].purchases += (rec.quantity * rec.purchasePrice) || 0;
         });
 
-        if (totalQty < 0) totalQty = 0;
+        Object.values(groups).forEach(g => {
+            // حساب الطنية المصروفة (التي تم سدادها) لهذه الشركة والمادة
+            let usedQty = 0;
+            financials.forEach(f => {
+                if (f.type === 'payment') {
+                    const eName = (f.entityName || '').toLowerCase();
+                    const cName = (g.companyName || '').toLowerCase();
+                    const matchComp = eName.includes(cName) || cName.includes(eName);
+                    
+                    let matchDrv = true;
+                    if (driverFilter) {
+                        matchDrv = eName.includes(driverFilter);
+                    }
+                    
+                    const matchMat = f.material ? (f.material === g.materialType) : true;
 
-        document.getElementById('stat-total-qty').textContent = fmt(totalQty);
-        document.getElementById('stat-total-profit').textContent = fmt(totalProfit);
-        document.getElementById('stat-total-debt').textContent = fmt(totalDebt);
+                    if (matchComp && matchDrv && matchMat) {
+                        usedQty += (parseFloat(f.tonnage) || 0);
+                    }
+                }
+            });
+
+            const originalQty = g.qty;
+            let currentQty = originalQty - usedQty;
+            if (currentQty < 0) currentQty = 0;
+
+            let ratio = 1;
+            if (originalQty > 0) {
+                ratio = currentQty / originalQty;
+            } else {
+                ratio = 0;
+            }
+
+            finalTotalQty += currentQty;
+            finalTotalProfit += Math.round(g.profit * ratio);
+            finalTotalDebt += Math.round(g.debt * ratio);
+            finalTotalSales += Math.round(g.sales * ratio);
+            finalTotalPurchases += Math.round(g.purchases * ratio);
+        });
+
+        document.getElementById('stat-total-qty').textContent = fmt(finalTotalQty);
+        document.getElementById('stat-total-profit').textContent = fmt(finalTotalProfit);
+        document.getElementById('stat-total-debt').textContent = fmt(finalTotalDebt);
         
         let salesBox = document.getElementById('stat-total-sales');
-        if (salesBox) salesBox.textContent = fmt(totalSales);
+        if (salesBox) salesBox.textContent = fmt(finalTotalSales);
         
         let purchasesBox = document.getElementById('stat-total-purchases');
-        if (purchasesBox) purchasesBox.textContent = fmt(totalPurchases);
+        if (purchasesBox) purchasesBox.textContent = fmt(finalTotalPurchases);
 
         // عرض الجدول التفصيلي إذا كانت هناك فلترة
         const detailSection = document.getElementById('detail-section');
@@ -834,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // طرح الكميات التي تم صرفها من الصندوق (سند صرف)
             let usedQty = 0;
             financials.forEach(f => {
-                if (f.type === 'payment' && f.material === mat) {
+                if (f.type === 'payment' && (!f.material || f.material === mat)) {
                     let matchComp = true;
                     if (compVal !== 'all') {
                         const eName = (f.entityName || '').toLowerCase();
@@ -861,6 +891,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalSale  = 0;
             }
 
+            // إخفاء الأيقونة (المربع) بالكامل إذا تم تسديد كمية المادة ولم يتبقَ منها شيء
+            if (currentQty <= 0) return;
+
             const box = document.createElement('div');
             box.className = 'glass-panel-inner wh-balance-box';
             box.style.borderColor = 'var(--accent-color)';
@@ -886,6 +919,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             grid.appendChild(box);
         });
+
+        if (grid.innerHTML === '') {
+            grid.innerHTML = '<p style="color:var(--text-secondary); font-size:0.9rem;">لا توجد مواد متبقية (تم التسديد بالكامل)</p>';
+        }
     }
 
     function renderWhDetail() {
