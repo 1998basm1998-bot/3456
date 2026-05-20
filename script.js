@@ -7,25 +7,28 @@ document.addEventListener('DOMContentLoaded', () => {
     let records = JSON.parse(localStorage.getItem('systemRecords')) || [];
     let financials = JSON.parse(localStorage.getItem('financialRecords')) || [];
 
-    // دالة مساعدة: تنسيق الأرقام بفواصل - أرقام إنجليزية
+    // دالة التنسيق للأرقام لضمان ظهور الفواصل والسالب
     function fmt(num) {
         if (num === null || num === undefined || isNaN(num)) return '0';
         return Number(num).toLocaleString('en-US');
     }
 
-    // قراءة قيمة حقل نصي يحتوي على فواصل
     function parseVal(input) {
-        return parseFloat((input.value || '').replace(/,/g, '')) || 0;
+        const val = input.value || input;
+        if(typeof val === 'string') {
+            return parseFloat(val.replace(/,/g, '')) || 0;
+        }
+        return parseFloat(val) || 0;
     }
 
-    // تنسيق حقل نصي بفواصل أثناء الكتابة
+    // تنسيق حقل نصي بفواصل (يسمح بإدخال السالب أيضاً)
     function attachCommaFormat(input) {
+        if(!input) return;
         input.addEventListener('input', function () {
-            const raw = this.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
-            if (raw === '' || raw === '.') { this.value = raw; return; }
+            const raw = this.value.replace(/,/g, '').replace(/[^0-9.-]/g, '');
+            if (raw === '' || raw === '.' || raw === '-') { this.value = raw; return; }
             const parts = raw.split('.');
             parts[0] = Number(parts[0]).toLocaleString('en-US');
-            const pos = this.selectionStart;
             this.value = parts.length > 1 ? parts[0] + '.' + parts[1] : parts[0];
         });
     }
@@ -45,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetId === 'tab-transactions') renderTransactions();
         if (targetId === 'tab-financial')    renderFinancials();
         if (targetId === 'tab-dashboard')    updateDashboard();
-        if (targetId === 'tab-warehouse') updateWarehouseView();
+        if (targetId === 'tab-warehouse')    updateWarehouseView();
     }
 
     navItems.forEach(item => {
@@ -54,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- الحسابات التلقائية ---
+    // --- الحسابات التلقائية لتبويبة البيانات ---
     const qtyInput           = document.getElementById('quantity');
     const purchaseInput      = document.getElementById('purchase-price');
     const sellingInput       = document.getElementById('selling-price');
@@ -63,12 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const netProfitDisplay   = document.getElementById('net-profit-display');
     const remainingDebtDisplay=document.getElementById('remaining-debt-display');
 
-    // ربط تنسيق الفواصل بالحقول النصية
     attachCommaFormat(qtyInput);
     attachCommaFormat(purchaseInput);
     attachCommaFormat(sellingInput);
     attachCommaFormat(amountReceivedInput);
-    attachCommaFormat(document.getElementById('fin-tonnage'));
     attachCommaFormat(document.getElementById('fin-amount'));
 
     function calculateLive() {
@@ -87,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
         remainingDebtDisplay.textContent= fmt(remaining);
     }
 
-    // تعبئة المبلغ الواصل تلقائياً بـ الكمية × سعر الشراء بفواصل
     function autoFillReceived() {
         const qty      = parseVal(qtyInput);
         const purchase = parseVal(purchaseInput);
@@ -101,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
     sellingInput.addEventListener('input',  () => { calculateLive();    saveDefaultPrices(); });
     amountReceivedInput.addEventListener('input', calculateLive);
 
-    // حفظ وتحميل أسعار الشراء والبيع الافتراضية
     function saveDefaultPrices() {
         const p = parseVal(purchaseInput);
         const s = parseVal(sellingInput);
@@ -119,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadDefaultPrices();
 
-    // --- حفظ أو تعديل حركة المبيعات ---
+    // --- حفظ أو تعديل الحركة (شاشة البيانات) ---
     const form = document.getElementById('record-form');
     const recordIdInput = document.getElementById('record-id');
     const submitBtn = document.getElementById('submit-btn');
@@ -131,7 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputDate = document.getElementById('date').value;
         const inputCar = document.getElementById('car-info').value.trim();
 
-        // منع تكرار السيارة في نفس اليوم فقط
         const isCarDuplicate = records.some(rec =>
             rec.date === inputDate &&
             rec.carInfo.trim().toLowerCase() === inputCar.toLowerCase() &&
@@ -147,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const purchase = parseVal(purchaseInput);
         const selling  = parseVal(sellingInput);
         const received = parseVal(amountReceivedInput);
+        const cashier  = document.getElementById('cashier-name').value.trim();
 
         const recordData = {
             id: currentId ? parseInt(currentId) : Date.now(),
@@ -161,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sellingPrice: selling,
             totalSale: qty * selling,
             netProfit: (selling - purchase) * qty,
-            cashierName: document.getElementById('cashier-name').value.trim(),
+            cashierName: cashier || 'بدون صندوق',
             amountReceived: received,
             remainingDebt: (qty * purchase) - received
         };
@@ -187,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadDefaultPrices();
     }
 
-    // --- عرض الحركات اليومية مع فلتر السائق والشركة ---
+    // --- عرض الحركات اليومية ---
     const transactionsBody = document.getElementById('transactions-body');
     const searchDriver = document.getElementById('search-driver');
     const searchCompany = document.getElementById('search-company');
@@ -207,10 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (filteredRecords.length === 0) {
-            const tr = document.createElement('tr');
-            tr.className = 'empty-row';
-            tr.innerHTML = `<td colspan="12">لا توجد حركات مطابقة للبحث</td>`;
-            transactionsBody.appendChild(tr);
+            transactionsBody.innerHTML = `<tr class="empty-row"><td colspan="13">لا توجد حركات مطابقة للبحث</td></tr>`;
             return;
         }
 
@@ -225,7 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${fmt(rec.quantity)}</td>
                 <td>${fmt(rec.purchasePrice)}</td>
                 <td>${fmt(rec.sellingPrice)}</td>
-                <td>${fmt(rec.amountReceived)}</td>
+                <td style="color:var(--accent-color); font-weight:bold;">${rec.cashierName}</td>
+                <td style="color:#00e676; font-weight:bold;">${fmt(rec.amountReceived)}</td>
                 <td style="color:#ff5252; font-weight:bold;">${fmt(rec.remainingDebt)}</td>
                 <td style="color:#00e676; font-weight:bold;">${fmt(rec.netProfit)}</td>
                 <td>
@@ -275,172 +272,25 @@ document.addEventListener('DOMContentLoaded', () => {
     searchCompany.addEventListener('input', renderTransactions);
     searchDate.addEventListener('change', renderTransactions);
 
-    // --- حركات الصندوق مع التعبئة والتحديثات التلقائية للمواد والمبالغ والأرصدة المتبقية ---
+
+    // ==========================================================
+    // حركات الصندوق (تمويل وسحب العهدة للفورمنية) المبسطة
+    // ==========================================================
     const finForm = document.getElementById('financial-form');
     const finIdInput = document.getElementById('financial-id');
     const finSubmitBtn = document.getElementById('fin-submit-btn');
-    const finEntity = document.getElementById('fin-entity');
-    const finType = document.getElementById('fin-type');
-    const finPersonGroup = document.getElementById('fin-person-group');
-    const finAmount = document.getElementById('fin-amount');
-    const debtHint = document.getElementById('debt-hint');
-
-    // إظهار/إخفاء حقل الشخص المستلم حسب نوع الحركة
-    function togglePersonGroup() {
-        if (finType.value === 'payment') {
-            finPersonGroup.style.display = 'block';
-        } else {
-            finPersonGroup.style.display = 'none';
-        }
-    }
-    finType.addEventListener('change', togglePersonGroup);
-    // استدعاء أولي
-    togglePersonGroup();
-
-    // ملء قائمة مواد الصندوق تلقائياً بناء على الجهة المدخلة من المخزن
-    function updateFinMaterials() {
-        const entityVal = finEntity.value.trim().toLowerCase();
-        const matSel = document.getElementById('fin-material');
-        const currentSelected = matSel.value;
-        matSel.innerHTML = '<option value="">كل المواد</option>';
-        if (!entityVal) return;
-
-        const mats = [...new Set(
-            records
-                .filter(r =>
-                    r.companyName.toLowerCase().includes(entityVal) ||
-                    r.driverName.toLowerCase().includes(entityVal)
-                )
-                .map(r => r.materialType)
-                .filter(Boolean)
-        )];
-
-        mats.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = m;
-            // إذا كانت المادة محددة مسبقاً، أو إذا كانت هناك مادة واحدة فقط للشركة يتم اختيارها تلقائياً
-            if (m === currentSelected || mats.length === 1) {
-                opt.selected = true;
-            }
-            matSel.appendChild(opt);
-        });
-    }
-
-    // حساب وعرض رصيد الطنية المتبقي التلقائي للجهة، وتعبئة الحقول بذكاء
-    function autoFillDebt(skipInputs = false) {
-        const entityVal = finEntity.value.trim().toLowerCase();
-        const typeVal = finType.value;
-        const matVal = document.getElementById('fin-material').value;
-
-        if (!entityVal) {
-            debtHint.style.display = 'none';
-            if (!skipInputs) {
-                document.getElementById('fin-tonnage').value = '';
-                document.getElementById('fin-amount').value = '';
-            }
-            return;
-        }
-
-        // حساب الرصيد دائماً حتى تتعبأ الحقول بغض النظر عن نوع السند المختار حالياً
-        let totalQty = 0;
-        records.forEach(r => {
-            if (r.companyName.toLowerCase().includes(entityVal) || r.driverName.toLowerCase().includes(entityVal)) {
-                if (!matVal || r.materialType === matVal) {
-                    totalQty += (r.quantity || 0);
-                }
-            }
-        });
-
-        financials.forEach(f => {
-            if (f.entityName.toLowerCase().includes(entityVal)) {
-                if (!matVal || f.material === matVal) {
-                    if (f.type === 'receipt') {
-                        totalQty -= (f.tonnage || 0);
-                    }
-                }
-            }
-        });
-
-        // إظهار التلميح فقط في حالة الصرف
-        if (typeVal === 'payment') {
-            debtHint.style.display = 'block';
-            const matText = matVal ? `من مادة (${matVal})` : 'لكل المواد';
-            if (totalQty > 0) {
-                debtHint.innerHTML = `<i class="fas fa-info-circle"></i> الرصيد المتبقي لهذه الجهة ${matText}: <strong>${fmt(totalQty)} طن</strong>`;
-            } else {
-                debtHint.innerHTML = `<i class="fas fa-check-circle" style="color:var(--profit-color)"></i> لا يوجد رصيد متبقي لهذه الجهة ${matText}`;
-            }
-        } else {
-            debtHint.style.display = 'none';
-        }
-
-        // تعبئة الحقول تلقائياً بالكمية المتبقية إذا لم نكن بوضع التعديل اليدوي
-        if (!skipInputs) {
-            if (totalQty > 0) {
-                document.getElementById('fin-tonnage').value = totalQty;
-            } else {
-                document.getElementById('fin-tonnage').value = '';
-            }
-            // حساب المبلغ التلقائي بعد تحديث الكمية
-            autoCalculateFinAmount();
-        }
-    }
-
-    // حساب المبلغ تلقائياً بناءً على الطنية وسعر البيع بالمخزن للجهة المحددة
-    function autoCalculateFinAmount() {
-        const entityVal = finEntity.value.trim().toLowerCase();
-        const tonnageVal = parseVal(document.getElementById('fin-tonnage'));
-        const matVal = document.getElementById('fin-material').value;
-        
-        if (!entityVal || tonnageVal <= 0) {
-            document.getElementById('fin-amount').value = '';
-            return;
-        }
-
-        let sellingPrice = 0;
-        const lastRecord = [...records].reverse().find(r =>
-            (r.companyName.toLowerCase().includes(entityVal) || r.driverName.toLowerCase().includes(entityVal)) &&
-            (!matVal || r.materialType === matVal)
-        );
-
-        if (lastRecord) {
-            sellingPrice = lastRecord.sellingPrice || 0;
-        } else {
-            sellingPrice = parseFloat(localStorage.getItem('defaultSellingPrice')) || 0;
-        }
-
-        if (sellingPrice > 0) {
-            document.getElementById('fin-amount').value = Math.round(tonnageVal * sellingPrice);
-        } else {
-            document.getElementById('fin-amount').value = '';
-        }
-    }
-
-    // مستمعات الأحداث للتحديث التلقائي الفوري
-    finEntity.addEventListener('input', () => {
-        updateFinMaterials();
-        autoFillDebt(false);
-    });
-    
-    finType.addEventListener('change', () => autoFillDebt(false));
-    
-    document.getElementById('fin-material').addEventListener('change', () => autoFillDebt(false));
-    
-    document.getElementById('fin-tonnage').addEventListener('input', autoCalculateFinAmount);
 
     finForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = finIdInput.value;
+        const cashier = document.getElementById('fin-cashier').value.trim();
+        
         const data = {
             id: id ? parseInt(id) : Date.now(),
             date: document.getElementById('fin-date').value,
-            type: finType.value,
-            amount: parseVal(finAmount),
-            tonnage: parseVal(document.getElementById('fin-tonnage')),
-            material: document.getElementById('fin-material').value,
-            entityName: finEntity.value.trim(),
-            personName: document.getElementById('fin-person').value.trim(),
+            type: document.getElementById('fin-type').value, 
+            cashierName: cashier,
+            amount: parseVal(document.getElementById('fin-amount')),
             notes: document.getElementById('fin-notes').value.trim()
         };
 
@@ -450,48 +300,42 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('✅ تم تعديل السند بنجاح!');
         } else {
             financials.push(data);
-            alert('✅ تم حفظ السند بنجاح!');
+            alert('✅ تم تسجيل العملية بنجاح!');
         }
 
         localStorage.setItem('financialRecords', JSON.stringify(financials));
         finForm.reset();
-        togglePersonGroup();
         finIdInput.value = '';
-        document.getElementById('fin-tonnage').value = '';
-        document.getElementById('fin-material').innerHTML = '<option value="">كل المواد</option>';
-        finSubmitBtn.textContent = 'حفظ السند';
+        finSubmitBtn.textContent = 'حفظ العملية';
         document.getElementById('fin-date').value = today;
-        debtHint.style.display = 'none';
         renderFinancials();
     });
 
-    // عرض سجل الصندوق مع الأيقونات والمواد والكميات الطنية المميزة
     function renderFinancials() {
         const body = document.getElementById('financial-body');
         body.innerHTML = '';
 
         if (financials.length === 0) {
-            const tr = document.createElement('tr');
-            tr.className = 'empty-row';
-            tr.innerHTML = `<td colspan="9">لا توجد سندات مسجلة</td>`;
-            body.appendChild(tr);
+            body.innerHTML = `<tr class="empty-row"><td colspan="6">لا توجد تمويلات مسجلة</td></tr>`;
             return;
         }
 
         [...financials].sort((a, b) => b.id - a.id).forEach(f => {
             const tr = document.createElement('tr');
-            const isReceipt = f.type === 'receipt';
-            const typeHTML = isReceipt
-                ? `<span class="icon-receipt"><i class="fas fa-arrow-circle-down"></i></span><span style="color:#00e676; font-weight:bold;">قبض</span>`
-                : `<span class="icon-payment"><i class="fas fa-arrow-circle-up"></i></span><span style="color:#ff5252; font-weight:bold;">صرف</span>`;
+            
+            // لضمان قراءة السجلات القديمة بشكل صحيح
+            const isDeposit = (f.type === 'deposit' || f.type === 'receipt');
+            const typeHTML = isDeposit
+                ? `<span class="icon-receipt"><i class="fas fa-arrow-circle-down"></i></span><span style="color:#00e676; font-weight:bold;">إيداع (تمويل)</span>`
+                : `<span class="icon-payment"><i class="fas fa-arrow-circle-up"></i></span><span style="color:#ff5252; font-weight:bold;">سحب (مصروف)</span>`;
+
+            // ضمان قراءة الاسم القديم إن وُجد
+            const fname = f.cashierName || f.fundName || f.entityName || f.boxName || '-';
 
             tr.innerHTML = `
                 <td>${f.date}</td>
                 <td>${typeHTML}</td>
-                <td>${f.entityName}</td>
-                <td>${f.personName || '-'}</td>
-                <td>${f.material || '-'}</td>
-                <td style="font-weight:bold;">${f.tonnage ? fmt(f.tonnage) : '-'}</td>
+                <td style="color:var(--accent-color); font-weight:bold;">${fname}</td>
                 <td style="font-weight:bold;">${fmt(f.amount)}</td>
                 <td>${f.notes || '-'}</td>
                 <td>
@@ -512,20 +356,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (rec) {
                 finIdInput.value = rec.id;
                 document.getElementById('fin-date').value = rec.date;
-                finType.value = rec.type;
-                togglePersonGroup();
-                finEntity.value = rec.entityName;
-                document.getElementById('fin-person').value = rec.personName || '';
-                updateFinMaterials();
-                document.getElementById('fin-material').value = rec.material || '';
                 
-                // جلب الملاحظة التوضيحية للديون دون الكتابة فوق القيم التي نريد تعديلها
-                autoFillDebt(true);
+                let t = rec.type;
+                if(t === 'receipt') t = 'deposit';
+                if(t === 'payment') t = 'withdraw';
+                document.getElementById('fin-type').value = t;
                 
-                // إرجاع القيم الأصلية للسند في الحقول ليتم تعديلها
-                document.getElementById('fin-tonnage').value = rec.tonnage || '';
-                finAmount.value = rec.amount || '';
-                document.getElementById('fin-notes').value = rec.notes;
+                document.getElementById('fin-cashier').value = rec.cashierName || rec.fundName || rec.entityName || rec.boxName || '';
+                document.getElementById('fin-amount').value = fmt(rec.amount);
+                document.getElementById('fin-notes').value = rec.notes || '';
                 
                 finSubmitBtn.textContent = 'تعديل السند';
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -540,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- ملء قائمة المواد تلقائياً عند كتابة اسم الجهة مع التوليد التلقائي الفوري للكشف ---
+    // --- كشف الحساب (يقرأ فقط من حركات البيانات دون تداخل) ---
     document.getElementById('stmt-entity').addEventListener('input', function () {
         const entity = this.value.trim().toLowerCase();
         const matSel = document.getElementById('stmt-material');
@@ -552,18 +391,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const mats = [...new Set(
             records
-                .filter(r =>
-                    r.companyName.toLowerCase().includes(entity) ||
-                    r.driverName.toLowerCase().includes(entity)
-                )
+                .filter(r => r.companyName.toLowerCase().includes(entity) || r.driverName.toLowerCase().includes(entity))
                 .map(r => r.materialType)
                 .filter(Boolean)
         )];
 
         mats.forEach(m => {
             const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = m;
+            opt.value = m; opt.textContent = m;
             matSel.appendChild(opt);
         });
 
@@ -574,7 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stmt-to').addEventListener('change', () => document.getElementById('btn-generate-stmt').click());
     document.getElementById('stmt-material').addEventListener('change', () => document.getElementById('btn-generate-stmt').click());
 
-    // --- كشف الحساب التفصيلي الكامل المبني على سعر البيع والرصيد المتبقي للمواد ---
     document.getElementById('btn-generate-stmt').addEventListener('click', () => {
         const from = document.getElementById('stmt-from').value;
         const to = document.getElementById('stmt-to').value;
@@ -588,44 +422,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let stmtRecords = [];
 
-        // مبيعات الجهة المحسوبة على أساس سعر البيع
         records.forEach(r => {
             if (r.companyName.toLowerCase().includes(entity) || r.driverName.toLowerCase().includes(entity)) {
                 if ((!from || r.date >= from) && (!to || r.date <= to)) {
                     if (matFilter !== 'all' && r.materialType !== matFilter) return;
                     stmtRecords.push({
                         date: r.date,
-                        type: 'فاتورة مبيعات',
+                        type: 'حركة شراء',
                         person: r.driverName,
                         car: r.carInfo,
                         material: r.materialType,
                         quantity: r.quantity,
-                        unit: r.unitType,
-                        purchasePrice: r.sellingPrice,
-                        debit: r.quantity * r.sellingPrice,
-                        credit: r.amountReceived
-                    });
-                }
-            }
-        });
-
-        // دمج مستندات وسندات الصندوق المالية والكمية مع تصفية المادة إن وجدت
-        financials.forEach(f => {
-            if (f.entityName.toLowerCase().includes(entity)) {
-                if (matFilter !== 'all' && f.material !== matFilter) return;
-                if ((!from || f.date >= from) && (!to || f.date <= to)) {
-                    const isReceipt = f.type === 'receipt';
-                    stmtRecords.push({
-                        date: f.date,
-                        type: isReceipt ? '✅ سند قبض' : '🔴 سند صرف',
-                        person: f.entityName,
-                        car: '-',
-                        material: f.material ? f.material : (f.notes || '-'),
-                        quantity: f.tonnage ? f.tonnage : '-',
-                        unit: f.tonnage ? 'طنية' : '-',
-                        purchasePrice: '-',
-                        debit: isReceipt ? 0 : f.amount,
-                        credit: isReceipt ? f.amount : 0
+                        purchasePrice: r.purchasePrice,
+                        debit: r.quantity * r.purchasePrice, // المبلغ المستحق الكلي
+                        credit: r.amountReceived // المبلغ الواصل له
                     });
                 }
             }
@@ -640,10 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalCredit = 0;
 
         if (stmtRecords.length === 0) {
-            const tr = document.createElement('tr');
-            tr.className = 'empty-row';
-            tr.innerHTML = `<td colspan="10">لا توجد حركات لهذه الجهة في الفترة المحددة</td>`;
-            stmtBody.appendChild(tr);
+            stmtBody.innerHTML = `<tr class="empty-row"><td colspan="9">لا توجد حركات لهذه الجهة في الفترة المحددة</td></tr>`;
         } else {
             stmtRecords.forEach(row => {
                 totalDebit += row.debit;
@@ -656,9 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${row.person}</td>
                     <td>${row.car}</td>
                     <td>${row.material}</td>
-                    <td>${row.quantity !== '-' ? fmt(row.quantity) : '-'}</td>
-                    <td>${row.unit}</td>
-                    <td>${row.purchasePrice !== '-' ? fmt(row.purchasePrice) : '-'}</td>
+                    <td>${fmt(row.quantity)}</td>
+                    <td>${fmt(row.purchasePrice)}</td>
                     <td style="color:#ff5252; font-weight:bold;">${row.debit > 0 ? fmt(row.debit) : '-'}</td>
                     <td style="color:#00e676; font-weight:bold;">${row.credit > 0 ? fmt(row.credit) : '-'}</td>
                 `;
@@ -672,7 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('stmt-result').style.display = 'block';
     });
 
-    // --- الإحصاء مع فلتر السائق والجدول التفصيلي ---
+    // --- الإحصائيات وأرصدة الصناديق (العُهد) ---
     const filterCompanySelect = document.getElementById('filter-company');
     const filterDriverInput = document.getElementById('filter-driver');
 
@@ -682,15 +488,71 @@ document.addEventListener('DOMContentLoaded', () => {
         filterCompanySelect.innerHTML = '<option value="all">الكل</option>';
         companies.forEach(company => {
             const option = document.createElement('option');
-            option.value = company;
-            option.textContent = company;
+            option.value = company; option.textContent = company;
             filterCompanySelect.appendChild(option);
         });
         filterCompanySelect.value = currentSelection || 'all';
+        
         calculateDashboardStats();
     }
 
     function calculateDashboardStats() {
+        
+        // --- 1. حساب وعرض أرصدة الصناديق (العهد النقدية للفورمنية) ---
+        let funds = {};
+        
+        // أ) أموال تم إيداعها أو سحبها مباشرة من شاشة الصندوق
+        financials.forEach(f => {
+            let name = (f.cashierName || f.fundName || f.entityName || f.boxName || '').trim();
+            if (!name) return;
+            if (!funds[name]) funds[name] = 0;
+            
+            const isDeposit = (f.type === 'deposit' || f.type === 'receipt');
+            if (isDeposit) {
+                funds[name] += (parseFloat(f.amount) || 0);
+            } else {
+                funds[name] -= (parseFloat(f.amount) || 0);
+            }
+        });
+
+        // ب) أموال دفعها الفورمن تلقائياً للسواق أثناء تسجيل المشتريات (شاشة البيانات)
+        records.forEach(r => {
+            let name = (r.cashierName || '').trim();
+            if (name && r.amountReceived) {
+                if (!funds[name]) funds[name] = 0;
+                funds[name] -= (parseFloat(r.amountReceived) || 0);
+            }
+        });
+
+        const fundGrid = document.getElementById('fund-balances-grid');
+        fundGrid.innerHTML = '';
+        
+        const fNames = Object.keys(funds);
+        if (fNames.length === 0) {
+            fundGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column: 1/-1;">لا توجد عُهد مالية مسجلة حالياً.</p>';
+        } else {
+            fNames.forEach(name => {
+                const bal = funds[name];
+                const isNegative = bal < 0; // الرصيد بالسالب كما طلب العميل
+                const box = document.createElement('div');
+                
+                // تلوين حسب الرصيد
+                box.className = `stat-box glass-panel-inner ${isNegative ? 'warning' : ''}`;
+                if (!isNegative && bal > 0) box.style.borderColor = 'var(--profit-color)';
+                else if (isNegative) box.style.borderColor = 'var(--danger-color)';
+
+                const colorStyle = isNegative ? 'color: var(--danger-color);' : (bal > 0 ? 'color: var(--profit-color);' : 'color: white;');
+                
+                box.innerHTML = `
+                    <h3 style="${isNegative ? 'color: var(--danger-color);' : ''}"><i class="fas fa-wallet"></i> صندوق: ${name}</h3>
+                    <p style="${colorStyle} font-weight:bold; font-size:1.5rem;" dir="ltr">${fmt(bal)}</p>
+                    ${isNegative ? '<small style="color:var(--danger-color); display:block; margin-top:5px; font-size:0.85rem; font-weight:bold;">(تم تجاوز العهدة)</small>' : ''}
+                `;
+                fundGrid.appendChild(box);
+            });
+        }
+
+        // --- 2. إحصائيات العمل والمخزن ---
         const selectedCompany = filterCompanySelect.value;
         const driverFilter = filterDriverInput.value.trim().toLowerCase();
 
@@ -709,66 +571,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let finalTotalSales = 0;
         let finalTotalPurchases = 0;
 
-        // تجميع السجلات حسب الشركة والمادة لخصم المدفوع بدقة (نسبة وتناسب)
-        const groups = {};
         filteredRecords.forEach(rec => {
-            const key = rec.companyName + '|' + (rec.materialType || '');
-            if (!groups[key]) {
-                groups[key] = {
-                    qty: 0,
-                    profit: 0,
-                    debt: 0,
-                    sales: 0,
-                    purchases: 0,
-                    companyName: rec.companyName,
-                    materialType: (rec.materialType || '')
-                };
-            }
-            groups[key].qty += rec.quantity;
-            groups[key].profit += rec.netProfit;
-            groups[key].debt += rec.remainingDebt;
-            groups[key].sales += (rec.quantity * rec.sellingPrice) || 0;
-            groups[key].purchases += (rec.quantity * rec.purchasePrice) || 0;
-        });
-
-        Object.values(groups).forEach(g => {
-            // حساب الطنية المقبوضة (التي تم سدادها) لهذه الشركة والمادة
-            let usedQty = 0;
-            financials.forEach(f => {
-                if (f.type === 'receipt') {
-                    const eName = (f.entityName || '').toLowerCase();
-                    const cName = (g.companyName || '').toLowerCase();
-                    const matchComp = eName.includes(cName) || cName.includes(eName);
-                    
-                    let matchDrv = true;
-                    if (driverFilter) {
-                        matchDrv = eName.includes(driverFilter);
-                    }
-                    
-                    const matchMat = f.material ? (f.material === g.materialType) : true;
-
-                    if (matchComp && matchDrv && matchMat) {
-                        usedQty += (parseFloat(f.tonnage) || 0);
-                    }
-                }
-            });
-
-            const originalQty = g.qty;
-            let currentQty = originalQty - usedQty;
-            if (currentQty < 0) currentQty = 0;
-
-            let ratio = 1;
-            if (originalQty > 0) {
-                ratio = currentQty / originalQty;
-            } else {
-                ratio = 0;
-            }
-
-            finalTotalQty += currentQty;
-            finalTotalProfit += Math.round(g.profit * ratio);
-            finalTotalDebt += Math.round(g.debt * ratio);
-            finalTotalSales += Math.round(g.sales * ratio);
-            finalTotalPurchases += Math.round(g.purchases * ratio);
+            finalTotalQty += (rec.quantity || 0);
+            finalTotalProfit += (rec.netProfit || 0);
+            finalTotalDebt += (rec.remainingDebt || 0);
+            finalTotalSales += ((rec.quantity || 0) * (rec.sellingPrice || 0));
+            finalTotalPurchases += ((rec.quantity || 0) * (rec.purchasePrice || 0));
         });
 
         document.getElementById('stat-total-qty').textContent = fmt(finalTotalQty);
@@ -781,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let purchasesBox = document.getElementById('stat-total-purchases');
         if (purchasesBox) purchasesBox.textContent = fmt(finalTotalPurchases);
 
-        // عرض الجدول التفصيلي إذا كانت هناك فلترة
+        // عرض الجدول التفصيلي للفلترة
         const detailSection = document.getElementById('detail-section');
         const detailBody = document.getElementById('detail-body');
         detailBody.innerHTML = '';
@@ -790,10 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             detailSection.style.display = 'block';
 
             if (filteredRecords.length === 0) {
-                const tr = document.createElement('tr');
-                tr.className = 'empty-row';
-                tr.innerHTML = `<td colspan="11">لا توجد حركات مطابقة</td>`;
-                detailBody.appendChild(tr);
+                detailBody.innerHTML = `<tr class="empty-row"><td colspan="11">لا توجد حركات مطابقة</td></tr>`;
             } else {
                 [...filteredRecords].sort((a, b) => b.id - a.id).forEach(rec => {
                     const tr = document.createElement('tr');
@@ -822,17 +627,15 @@ document.addEventListener('DOMContentLoaded', () => {
     filterDriverInput.addEventListener('input', calculateDashboardStats);
 
     // ============================================================
-    // نظام المخزن — مبني على بيانات السيارات والموردين
+    // عرض أرصدة المخزن 
     // ============================================================
     function updateWarehouseView() {
         const compSel = document.getElementById('wh-filter-company');
         const matSel  = document.getElementById('wh-filter-mat-view');
 
-        // حفظ القيم الحالية قبل إعادة البناء
         const prevComp = compSel.value;
         const prevMat  = matSel.value;
 
-        // ملء قائمة الشركات
         const companies = [...new Set(records.map(r => r.companyName).filter(Boolean))].sort();
         compSel.innerHTML = '<option value="all">الكل</option>';
         companies.forEach(c => {
@@ -842,7 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         compSel.value = companies.includes(prevComp) ? prevComp : 'all';
 
-        // ملء قائمة المواد
         const mats = [...new Set(records.map(r => r.materialType).filter(Boolean))].sort();
         matSel.innerHTML = '<option value="all">كل المواد</option>';
         mats.forEach(m => {
@@ -877,43 +679,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mats.forEach(mat => {
             const recs       = base.filter(r => r.materialType === mat);
-            let totalQty   = recs.reduce((s, r) => s + r.quantity, 0);
-            let totalPurch = recs.reduce((s, r) => s + r.quantity * r.purchasePrice, 0);
-            let totalSale  = recs.reduce((s, r) => s + (r.quantity * r.sellingPrice || 0), 0);
+            let totalQty   = recs.reduce((s, r) => s + (r.quantity || 0), 0);
+            let totalPurch = recs.reduce((s, r) => s + (r.quantity || 0) * (r.purchasePrice || 0), 0);
+            let totalSale  = recs.reduce((s, r) => s + ((r.quantity || 0) * (r.sellingPrice || 0)), 0);
             const unit       = recs[0]?.unitType || '';
 
-            // طرح الكميات التي تم قبضها من الصندوق (سند قبض)
-            let usedQty = 0;
-            financials.forEach(f => {
-                if (f.type === 'receipt' && f.material === mat) {
-                    let matchComp = true;
-                    if (compVal !== 'all') {
-                        const eName = (f.entityName || '').toLowerCase();
-                        const cVal = compVal.toLowerCase();
-                        matchComp = eName.includes(cVal) || cVal.includes(eName);
-                    }
-                    if (matchComp) {
-                        usedQty += (parseFloat(f.tonnage) || 0);
-                    }
-                }
-            });
-
-            const originalQty = totalQty;
-            let currentQty = totalQty - usedQty;
-            if (currentQty < 0) currentQty = 0;
-
-            // حساب التكلفة وقيمة البيع بشكل يتناسب مع المتبقي من المادة
-            if (originalQty > 0) {
-                let ratio = currentQty / originalQty;
-                totalPurch = Math.round(totalPurch * ratio);
-                totalSale  = Math.round(totalSale * ratio);
-            } else {
-                totalPurch = 0;
-                totalSale  = 0;
-            }
-
-            // إخفاء الأيقونة (المربع) بالكامل إذا تم تسديد كمية المادة ولم يتبقَ منها شيء
-            if (currentQty <= 0) return;
+            if (totalQty <= 0) return;
 
             const box = document.createElement('div');
             box.className = 'glass-panel-inner wh-balance-box';
@@ -926,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center;">
                     <div>
                         <div style="font-size:0.72rem; color:var(--text-secondary); margin-bottom:3px;">إجمالي الكمية</div>
-                        <div style="color:#fff; font-weight:bold; font-size:1rem;">${fmt(currentQty)}</div>
+                        <div style="color:#fff; font-weight:bold; font-size:1rem;">${fmt(totalQty)}</div>
                     </div>
                     <div>
                         <div style="font-size:0.72rem; color:var(--text-secondary); margin-bottom:3px;">قيمة الشراء</div>
@@ -940,10 +711,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             grid.appendChild(box);
         });
-
-        if (grid.innerHTML === '') {
-            grid.innerHTML = '<p style="color:var(--text-secondary); font-size:0.9rem;">لا توجد مواد متبقية (تم التسديد بالكامل)</p>';
-        }
     }
 
     function renderWhDetail() {
@@ -983,7 +750,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('wh-filter-company').addEventListener('change', () => { renderWhBalance(); renderWhDetail(); });
     document.getElementById('wh-filter-mat-view').addEventListener('change', () => { renderWhBalance(); renderWhDetail(); });
 
-    // تهيئة أولية للمخزن
+    // تشغيل مبدئي
     updateWarehouseView();
-
 });
